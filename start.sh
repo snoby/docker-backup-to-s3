@@ -1,6 +1,22 @@
 #!/bin/bash
 
 set -e
+
+
+# SIGTERM-handler
+term_handler() {
+  if [ $pid -ne 0 ]; then
+    kill -SIGTERM "$pid"
+    wait "$pid"
+  fi
+  exit 143; # 128 + 15 -- SIGTERM
+}
+
+
+
+# setup handler to kill program
+trap 'kill ${!}; term_handler' SIGTERM
+
 # Because we are using roles in our kube2iam kubernetes we will automatically have
 # rights to run these commands.
 #
@@ -28,5 +44,12 @@ else
     echo -e "$CRON_ENV\n$CRON_SCHEDULE /sync.sh > $LOGFIFO 2>&1" | crontab -
     crontab -l
     cron
-    tail -f "$LOGFIFO"
+    tail -f "$LOGFIFO" &
+    pid="$!"
+    # Now wait here for an exit signal
+    while true
+    do
+      tail -f /dev/null & wait ${!}
+    done
+
 fi
